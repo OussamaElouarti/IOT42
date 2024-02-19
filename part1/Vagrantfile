@@ -1,0 +1,55 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+server_ip = "192.168.56.110"
+
+agent_ip = "192.168.56.111"
+
+server_script = <<-SHELL
+    apk add curl
+    export INSTALL_K3S_EXEC="--bind-address=#{server_ip} --flannel-iface=eth1"
+    curl -sfL https://get.k3s.io | sh -
+    echo "Sleeping for 10 seconds to wait for k3s to start"
+    sleep 10
+	  cp /var/lib/rancher/k3s/server/token /vagrant_shared
+    cp /etc/rancher/k3s/k3s.yaml /vagrant_shared
+	  echo "alias k='sudo kubectl'" > /home/vagrant/.bashrc && source /home/vagrant/.bashrc && chown vagrant:vagrant /home/vagrant/.bashrc
+  SHELL
+
+agent_script = <<-SHELL
+    apk add curl
+    export K3S_TOKEN_FILE=/vagrant_shared/token
+    export K3S_URL=https://#{server_ip}:6443
+    export INSTALL_K3S_EXEC="--flannel-iface=eth1"
+	  ifconfig eth1 broadcast 192.168.56.255 up
+    curl -sfL https://get.k3s.io | sh -
+    SHELL
+
+Vagrant.configure("2") do |config|
+  
+  config.vm.define "oel-ouarS", primary: true do |server|
+    server.vm.network "private_network", ip: server_ip
+    server.vm.synced_folder "./shared", "/vagrant_shared"
+    server.vm.hostname = "oel-ouarS"
+    server.vm.provider "virtualbox" do |vb|
+      vb.memory = "1024"
+	    vb.name = "oel-ouar"
+      vb.cpus = "1"
+    end
+    server.vm.provision "shell", inline: server_script
+  end
+
+  
+  config.vm.define "oel-ouarSW" do |agent|
+	agent.vm.network "private_network", ip: agent_ip
+	agent.vm.synced_folder "./shared", "/vagrant_shared"
+	agent.vm.hostname = "oel-ouarSW"
+	agent.vm.provider "virtualbox" do |vb|
+	  vb.memory = "512"
+	  vb.name = "oel-yous"
+	  vb.cpus = "1"
+	end
+ 	agent.vm.provision "shell", inline: agent_script
+  end
+
+end
